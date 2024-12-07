@@ -6,3 +6,5 @@
 - [ ] Voi kiivetä rakennelmaan
 
 muutos
+
+tiedostoa on muutettu
