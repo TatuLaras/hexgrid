@@ -4,3 +4,5 @@
 - [ ] Voi rakentaa huonekalun rakennelman sisälle
 - [ ] Voi taistella örkkiä vastaan
 - [ ] Voi kiivetä rakennelmaan
+
+muutos
