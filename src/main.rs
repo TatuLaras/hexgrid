@@ -1,52 +1,46 @@
-use bevy::{prelude::*, render::camera::ScalingMode, sprite::Anchor, window::PrimaryWindow};
-use config::HEX_TILE_ANCHOR;
+use bevy::{prelude::*, render::camera::ScalingMode, window::PrimaryWindow};
 use debug_text::{update_debug_text, DebugTextElement};
-use hex_coords::pixel_to_axial;
+use game_camera::{FollowsPlayer, GameCamera};
 use hex_map::HexMap;
-use keyboard_movement::{keyboard_movement, KeyboardMovement};
+use player_movement::{Movement, PlayerMovement};
+use player_visuals::{AnimationIndices, AnimationTimer, MovementAnimation, PlayerVisuals};
 
-pub mod config;
-pub mod debug_text;
-pub mod hex_coords;
-pub mod hex_map;
-pub mod keyboard_movement;
+mod config;
+mod debug_text;
+mod game_camera;
+mod hex_coords;
+mod hex_map;
+mod player_movement;
+mod player_visuals;
 
-/// We will store the world position of the mouse cursor here.
-#[derive(Resource, Default)]
-struct MouseCursorWorldCoords(Vec2);
-
-#[derive(Component)]
-struct MainCamera;
-
-#[derive(Component)]
-struct FollowsCursor;
-
-#[derive(Resource)]
-pub struct DebugTextTimer(Timer);
-
-#[derive(Resource)]
-pub struct DebugText {
-    text: String,
-    has_changed: bool,
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
+        .add_plugins((HexMap, PlayerMovement, GameCamera, PlayerVisuals))
+        .add_systems(Startup, setup)
+        .add_systems(
+            Update,
+            (update_debug_text, follow_cursor, world_space_cursor),
+        )
+        .insert_resource(MouseCursorWorldCoords(Vec2 { x: 0., y: 0. }))
+        .insert_resource(DebugTextTimer(Timer::from_seconds(
+            6.0,
+            TimerMode::Repeating,
+        )))
+        .insert_resource(ClearColor(Color::srgb(0., 0., 0.)))
+        .insert_resource(DebugText {
+            text: "".into(),
+            has_changed: false,
+        })
+        .run();
 }
 
-impl DebugText {
-    pub fn set(&mut self, str: &str) {
-        self.text = str.into();
-        self.has_changed = true;
-    }
-
-    pub fn new_text(&mut self) -> Option<String> {
-        if !self.has_changed {
-            return None;
-        }
-
-        self.has_changed = false;
-        return Some(self.text.clone());
-    }
-}
-
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+) {
+    // 2D camera
     let projection = Projection::Orthographic(OrthographicProjection {
         scaling_mode: ScalingMode::FixedVertical {
             viewport_height: 200.0,
@@ -57,24 +51,55 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Camera2d,
         projection,
-        Transform::from_xyz(200.0, 200.0, 0.0),
-        KeyboardMovement { speed: 6.0 },
+        Transform::from_xyz(0., 0., 0.),
         MainCamera,
+        FollowsPlayer { follow_speed: 8. },
     ));
 
     let cross_sprite = Sprite::from_image(asset_server.load("debug_cross.png"));
 
-    commands.spawn((
-        cross_sprite.clone(),
-        Transform::from_xyz(0., 0., 0.),
-        FollowsCursor,
-    ));
+    // You can use this to visualize pivot of sprite
 
+    // commands.spawn((
+    //     cross_sprite.clone(),
+    //     Transform::from_xyz(0., 0., 0.),
+    //     FollowsCursor,
+    // ));
+
+    // A cross at (0, 0) to see where the origo is
     commands.spawn((cross_sprite, Transform::from_xyz(0., 0., 0.)));
 
+    // Player
+    let texture = asset_server.load("debug_bubble_guy.png");
+    let layout = TextureAtlasLayout::from_grid(UVec2::splat(16), 3, 3, None, None);
+    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+
     commands.spawn((
-        // Here we are able to call the `From` method instead of creating a new `TextSection`.
-        // This will use the default font (a minimal subset of FiraMono) and apply the default styling.
+        Player,
+        Movement {
+            speed: 2.,
+            run_speed: 3.,
+            ..Default::default()
+        },
+        Transform::from_xyz(0., 0., 1.),
+        Sprite::from_atlas_image(
+            texture,
+            TextureAtlas {
+                layout: texture_atlas_layout,
+                index: 0,
+            },
+        ),
+        AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
+        MovementAnimation {
+            idle: AnimationIndices { from_i: 0, to_i: 0 },
+            down: AnimationIndices { from_i: 1, to_i: 2 },
+            right: AnimationIndices { from_i: 4, to_i: 5 },
+            up: AnimationIndices { from_i: 7, to_i: 8 },
+        },
+    ));
+
+    // Debug text element
+    commands.spawn((
         Text::new(""),
         Node {
             position_type: PositionType::Absolute,
@@ -123,28 +148,39 @@ fn follow_cursor(
     }
 }
 
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
-        .add_plugins(HexMap)
-        .add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (
-                keyboard_movement,
-                update_debug_text,
-                follow_cursor,
-                world_space_cursor,
-            ),
-        )
-        .insert_resource(MouseCursorWorldCoords(Vec2 { x: 0., y: 0. }))
-        .insert_resource(DebugTextTimer(Timer::from_seconds(
-            6.0,
-            TimerMode::Repeating,
-        )))
-        .insert_resource(DebugText {
-            text: "".into(),
-            has_changed: false,
-        })
-        .run();
+#[derive(Resource, Default)]
+struct MouseCursorWorldCoords(Vec2);
+
+#[derive(Component)]
+struct FollowsCursor;
+
+#[derive(Component)]
+pub struct MainCamera;
+
+#[derive(Component)]
+pub struct Player;
+
+#[derive(Resource)]
+pub struct DebugTextTimer(Timer);
+
+#[derive(Resource)]
+pub struct DebugText {
+    text: String,
+    has_changed: bool,
+}
+
+impl DebugText {
+    pub fn set(&mut self, str: &str) {
+        self.text = str.into();
+        self.has_changed = true;
+    }
+
+    pub fn new_text(&mut self) -> Option<String> {
+        if !self.has_changed {
+            return None;
+        }
+
+        self.has_changed = false;
+        return Some(self.text.clone());
+    }
 }

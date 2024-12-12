@@ -1,9 +1,8 @@
 use std::borrow::BorrowMut;
 
+use bevy::app::Plugin;
 use bevy::prelude::*;
-use bevy::{app::Plugin, input::mouse};
 
-use crate::config::HEX_WIDTH;
 use crate::{
     config::HEX_TILE_ANCHOR,
     hex_coords::{axial_to_pixel, pixel_to_axial, AxialCoord},
@@ -81,11 +80,12 @@ fn plant_tree(
             let axial = pixel_to_axial(mouse_coords.0 - offset);
 
             let index: i32 = axial.r * grid.width as i32 + axial.q;
-            let index: usize = index as usize;
 
-            if index >= grid.cells.len() {
+            let index = if index < 0 || index as usize >= grid.cells.len() {
                 continue;
-            }
+            } else {
+                index as usize
+            };
 
             let Some(cell) = grid.cells[index] else { continue };
 
@@ -138,14 +138,3 @@ impl HexGrid {
         }
     }
 }
-
-// #[derive(Clone)]
-// enum CellKind {
-//     Debug,
-// }
-//
-// #[derive(Clone)]
-// struct HexCell {
-//     pub kind: CellKind,
-//     pub entity_id: u64,
-// }
