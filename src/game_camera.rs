@@ -21,15 +21,14 @@ fn update_camera_position(
         return;
     };
 
+    // Smoothly lerp the camera position towards the player
     for (mut transform, follows_player) in &mut player_followers {
-        transform.translation.x = transform.translation.x.lerp(
-            player_transform.translation.x,
-            time.delta_secs() * follows_player.follow_speed,
-        );
-        transform.translation.y = transform.translation.y.lerp(
-            player_transform.translation.y,
-            time.delta_secs() * follows_player.follow_speed,
-        );
+        let camera_pos = transform.translation.truncate();
+        let player_pos = player_transform.translation.truncate();
+
+        transform.translation = camera_pos
+            .lerp(player_pos, time.delta_secs() * follows_player.follow_speed)
+            .extend(transform.translation.z);
     }
 }
 

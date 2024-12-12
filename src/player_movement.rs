@@ -2,6 +2,8 @@ use std::f32::consts::PI;
 
 use bevy::prelude::*;
 
+use crate::util::get_z_index;
+
 pub struct PlayerMovement;
 
 impl Plugin for PlayerMovement {
@@ -47,6 +49,7 @@ pub fn keyboard_movement(
         transform.translation.x += direction.x * speed;
         // Vertical speed needs to be a bit less than horizontal due to the projection
         transform.translation.y += direction.y * speed * 0.7;
+        transform.translation.z = get_z_index(transform.translation.y);
     }
 }
 

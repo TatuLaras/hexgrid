@@ -1,23 +1,18 @@
-const MOVING_DOWN_ROW: usize = 0;
-const MOVING_HORIZONTALLY_ROW: usize = 1;
-const MOVING_UP_ROW: usize = 2;
-
 use bevy::prelude::*;
 
 use crate::{
-    player_movement::{Movement, MovementState},
-    Player,
+    player_movement::{Movement, MovementState}, AnimationIndices, AnimationTimer, Player
 };
 
-pub struct PlayerVisuals;
+pub struct CharacterAnimation;
 
-impl Plugin for PlayerVisuals {
+impl Plugin for CharacterAnimation {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, animate_sprite);
+        app.add_systems(Update, animate_sprites);
     }
 }
 
-fn animate_sprite(
+fn animate_sprites(
     time: Res<Time>,
     mut query: Query<
         (
@@ -58,6 +53,7 @@ fn animate_sprite(
 
         timer.tick(time.delta());
 
+        // Advance the animation if necessary
         if timer.just_finished() {
             atlas.index = if atlas.index == animation.to_i {
                 animation.from_i
@@ -68,9 +64,6 @@ fn animate_sprite(
     }
 }
 
-#[derive(Component, Deref, DerefMut)]
-pub struct AnimationTimer(pub Timer);
-
 #[derive(Component)]
 pub struct MovementAnimation {
     pub up: AnimationIndices,
@@ -79,7 +72,3 @@ pub struct MovementAnimation {
     pub idle: AnimationIndices,
 }
 
-pub struct AnimationIndices {
-    pub from_i: usize,
-    pub to_i: usize,
-}

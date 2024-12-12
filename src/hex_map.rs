@@ -1,12 +1,9 @@
-use std::borrow::BorrowMut;
-
-use bevy::app::Plugin;
 use bevy::prelude::*;
 
 use crate::{
     config::HEX_TILE_ANCHOR,
-    hex_coords::{axial_to_pixel, pixel_to_axial, AxialCoord},
-    MouseCursorWorldCoords,
+    hex_coords::{axial_to_pixel, AxialCoord},
+    util::get_z_index,
 };
 
 pub struct HexMap;
@@ -14,7 +11,6 @@ pub struct HexMap;
 impl Plugin for HexMap {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_systems(Startup, (spawn_grids, setup_hex_grids).chain());
-        app.add_systems(Update, (add_tree, plant_tree));
     }
 }
 
@@ -53,51 +49,13 @@ fn setup_hex_grids(
                     transform: Transform::from_xyz(
                         offset.x + pixel.x,
                         offset.y + pixel.y,
-                        offset.z - pixel.y * 0.01,
+                        offset.z - 1000. + get_z_index(pixel.y),
                     ),
                 },))
                 .id();
 
             grid.cells[i] = Some(id);
         }
-    }
-    println!("{:?}", grids);
-}
-
-fn plant_tree(
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
-    mouse_coords: Res<MouseCursorWorldCoords>,
-    mut commands: Commands,
-    query: Query<(&HexGrid, &Transform)>,
-) {
-    if mouse_button_input.just_pressed(MouseButton::Left) {
-        for (grid, transform) in &query {
-            let offset = Vec2 {
-                x: transform.translation.x,
-                y: transform.translation.y,
-            };
-
-            let axial = pixel_to_axial(mouse_coords.0 - offset);
-
-            let index: i32 = axial.r * grid.width as i32 + axial.q;
-
-            let index = if index < 0 || index as usize >= grid.cells.len() {
-                continue;
-            } else {
-                index as usize
-            };
-
-            let Some(cell) = grid.cells[index] else { continue };
-
-            commands.entity(cell).insert(HasTree);
-        }
-    }
-}
-
-fn add_tree(mut sprites: Query<&mut Sprite, Added<HasTree>>, asset_server: Res<AssetServer>) {
-    for mut sprite in &mut sprites {
-        let handle = sprite.image.borrow_mut();
-        *handle = asset_server.load("cells/debug_tree_w128.png");
     }
 }
 
@@ -123,9 +81,6 @@ impl Default for HexGrid {
         }
     }
 }
-
-#[derive(Component)]
-struct HasTree;
 
 impl HexGrid {
     pub fn from_size(width: u16, height: u16) -> Self {

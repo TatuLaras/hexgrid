@@ -1,22 +1,24 @@
-use bevy::{prelude::*, render::camera::ScalingMode, window::PrimaryWindow};
+use bevy::{prelude::*, render::camera::ScalingMode, sprite::Anchor, window::PrimaryWindow};
+use character_animation::{CharacterAnimation, MovementAnimation};
 use debug_text::{update_debug_text, DebugTextElement};
 use game_camera::{FollowsPlayer, GameCamera};
 use hex_map::HexMap;
 use player_movement::{Movement, PlayerMovement};
-use player_visuals::{AnimationIndices, AnimationTimer, MovementAnimation, PlayerVisuals};
+use util::get_z_index;
 
+mod character_animation;
 mod config;
 mod debug_text;
 mod game_camera;
 mod hex_coords;
 mod hex_map;
 mod player_movement;
-mod player_visuals;
+mod util;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
-        .add_plugins((HexMap, PlayerMovement, GameCamera, PlayerVisuals))
+        .add_plugins((HexMap, PlayerMovement, GameCamera, CharacterAnimation))
         .add_systems(Startup, setup)
         .add_systems(
             Update,
@@ -27,7 +29,7 @@ fn main() {
             6.0,
             TimerMode::Repeating,
         )))
-        .insert_resource(ClearColor(Color::srgb(0., 0., 0.)))
+        .insert_resource(ClearColor(Color::srgb(1., 1., 1.)))
         .insert_resource(DebugText {
             text: "".into(),
             has_changed: false,
@@ -45,6 +47,7 @@ fn setup(
         scaling_mode: ScalingMode::FixedVertical {
             viewport_height: 200.0,
         },
+        far: 2000.,
         ..OrthographicProjection::default_2d()
     });
 
@@ -58,21 +61,40 @@ fn setup(
 
     let cross_sprite = Sprite::from_image(asset_server.load("debug_cross.png"));
 
+    let mut box_sprite = Sprite::from_image(asset_server.load("debug_box.png"));
+    box_sprite.anchor = Anchor::BottomCenter;
+
     // You can use this to visualize pivot of sprite
 
-    // commands.spawn((
-    //     cross_sprite.clone(),
-    //     Transform::from_xyz(0., 0., 0.),
-    //     FollowsCursor,
-    // ));
+    commands.spawn((
+        box_sprite.clone(),
+        Transform::from_xyz(0., 0., 0.),
+        FollowsCursor,
+    ));
 
     // A cross at (0, 0) to see where the origo is
     commands.spawn((cross_sprite, Transform::from_xyz(0., 0., 0.)));
+
+    // Static objects
+    commands.spawn((
+        box_sprite,
+        Transform::from_xyz(300., 273., get_z_index(273.)),
+    ));
 
     // Player
     let texture = asset_server.load("debug_bubble_guy.png");
     let layout = TextureAtlasLayout::from_grid(UVec2::splat(16), 3, 3, None, None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
+
+    let mut player_sprite = Sprite::from_atlas_image(
+        texture,
+        TextureAtlas {
+            layout: texture_atlas_layout,
+            index: 0,
+        },
+    );
+
+    player_sprite.anchor = Anchor::BottomCenter;
 
     commands.spawn((
         Player,
@@ -82,13 +104,7 @@ fn setup(
             ..Default::default()
         },
         Transform::from_xyz(0., 0., 1.),
-        Sprite::from_atlas_image(
-            texture,
-            TextureAtlas {
-                layout: texture_atlas_layout,
-                index: 0,
-            },
-        ),
+        player_sprite,
         AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
         MovementAnimation {
             idle: AnimationIndices { from_i: 0, to_i: 0 },
@@ -143,7 +159,7 @@ fn follow_cursor(
         transform.translation = Vec3 {
             x: mouse_coords.0.x,
             y: mouse_coords.0.y,
-            z: transform.translation.z,
+            z: get_z_index(mouse_coords.0.y),
         };
     }
 }
@@ -183,4 +199,12 @@ impl DebugText {
         self.has_changed = false;
         return Some(self.text.clone());
     }
+}
+
+#[derive(Component, Deref, DerefMut)]
+pub struct AnimationTimer(pub Timer);
+
+pub struct AnimationIndices {
+    pub from_i: usize,
+    pub to_i: usize,
 }
